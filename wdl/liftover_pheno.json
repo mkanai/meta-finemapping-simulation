@@ -1,0 +1,12 @@
+{
+    "liftover_pheno.zones": "us-central1-a us-central1-b us-central1-c us-central1-f",
+    "liftover_pheno.docker": "gcr.io/encode-uk-biobank-restrict/hail:0.2.59",
+    "liftover_pheno.phenolistfile": "gs://meta-finemapping-simulation/pheno.1-100.txt",
+    // "liftover_pheno.phenolistfile": "gs://meta-finemapping-simulation/test.txt",
+    "liftover_pheno.pheno_format": "gs://meta-finemapping-simulation/true_pheno/pheno{PHENO}.beta.txt",
+    "liftover_pheno.liftover.cpu": 2,
+    "liftover_pheno.liftover.mem": 26,
+    "liftover_pheno.liftover.reference_genome": "GRCh37",
+    "liftover_pheno.liftover.variant_col": "variant",
+    "liftover_pheno.liftover.script": "gs://meta-finemapping-simulation/liftover_hail.py"
+}
