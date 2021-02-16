@@ -6,7 +6,7 @@ from hail.genetics import reference_genome
 
 import logging
 from typing import Tuple, Union
-from liftover import get_liftover_genome
+from gnomad.utils.reference_genome import add_reference_sequence, get_reference_genome
 
 logging.basicConfig(
     format="%(asctime)s (%(name)s %(lineno)s): %(message)s",
@@ -14,6 +14,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+GRCH37_to_GRCH38_CHAIN = "gs://hail-common/references/grch37_to_grch38.over.chain.gz"
+"""
+Path to chain file required to lift data from GRCh37 to GRCh38.
+"""
+
+GRCH38_TO_GRCH37_CHAIN = "gs://hail-common/references/grch38_to_grch37.over.chain.gz"
+"""
+Path to chain file required to lift data from GRCh38 to GRCh37.
+"""
+
+
+def get_liftover_genome(t: Union[hl.MatrixTable, hl.Table]
+                       ) -> Tuple[hl.genetics.ReferenceGenome, hl.genetics.ReferenceGenome]:
+    """
+    Infers reference genome build of input data and assumes destination reference genome build.
+    Adds liftover chain to source reference genome and sequence to destination reference genome.
+    Returns tuple containing both reference genomes in preparation for liftover.
+    :param t: Input Table or MatrixTable.
+    :return: Tuple of source reference genome (with liftover chain added)
+        and destination reference genome (with sequence loaded)
+    """
+
+    logger.info("Inferring reference genome of input...")
+    input_build = get_reference_genome(t.locus).name
+    source = hl.get_reference(input_build)
+
+    logger.info("Loading fasta sequence for destination build...")
+    if input_build == "GRCh38":
+        target = hl.get_reference("GRCh37")
+        chain = GRCH38_TO_GRCH37_CHAIN
+
+    else:
+        target = hl.get_reference("GRCh38")
+        chain = GRCH37_to_GRCH38_CHAIN
+
+    logger.info("Adding liftover chain to input build...")
+    if source.has_liftover(target):
+        logger.warning(f"Source reference build {source.name} already has a chain file: {source._liftovers}!\
+            Using whichever chain has already been added."                                                                                                                    )
+    else:
+        source.add_liftover(chain, target)
+
+    return (source, add_reference_sequence(target))
 
 
 def liftover_expr(
@@ -86,7 +130,7 @@ def default_lift_data(
 
 
 def main(args):
-    ht = hl.import_table(args.table, impute=True)
+    ht = hl.import_table(args.table, impute=True, delimiter=args.delimiter)
     ht = ht.annotate(**hl.parse_variant(ht[args.variant_col], reference_genome=args.reference_genome))
     ht = ht.key_by('locus', 'alleles')
     ht = default_lift_data(ht)
@@ -105,6 +149,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--table', type=str, required=True, help='Input table file to liftover')
+    parser.add_argument('--delimiter', type=str, default='\t', help='Delimiter for the input table')
     parser.add_argument('--variant-col', type=str, default='variant', help='Column name for variant ID')
     parser.add_argument('--reference-genome', type=str, default='GRCh37', help='Reference genome for input')
     parser.add_argument('--out', type=str, required=True, help='Output path')

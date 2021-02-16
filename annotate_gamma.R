@@ -7,6 +7,8 @@ parser$add_argument("--meta", type = "character", required = TRUE)
 parser$add_argument("--beta", type = "character", required = TRUE)
 parser$add_argument("--out", type = "character", required = TRUE)
 
+args <- parser$parse_args()
+
 df.abf <- data.table::fread(cmd = paste("zcat", args$snp), data.table = F) %>%
   dplyr::mutate(variant = stringr::str_c("chr", variant)) %>%
   dplyr::select(!c(rsid, chromosome, position, allele1, allele2))

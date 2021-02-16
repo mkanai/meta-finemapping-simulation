@@ -146,7 +146,7 @@ task annotate_gamma {
 
         Rscript ${script} \
         --snp ${snp} \
-        --pheno ${betafile} \
+        --beta ${betafile} \
         --meta ${sumstats} \
         --out ${outname}
 
