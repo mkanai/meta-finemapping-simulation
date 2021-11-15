@@ -97,7 +97,7 @@ df = pd.DataFrame({
 })
 
 df.to_csv(
-    f"/broad/finucanelab/relzur/meta_analysis_fm/meta.config{config}.eval.txt", 
+    f"/broad/finucanelab/relzur/meta_analysis_fm/eval.config{config}.txt", 
     sep="\t", 
     index=False
 )
