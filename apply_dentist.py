@@ -13,7 +13,7 @@ dentist_pref = "/broad/finucanelab/relzur/meta_analysis_fm/gnomad_filtered_chr3_
 
 def compute_p_dentist(z, r, i):
     """
-    compute DENTIST test statistic
+    compute DENTIST test statistic and associated p value
     
     Args:
         z - numpy array of z scores for the locus
@@ -22,7 +22,7 @@ def compute_p_dentist(z, r, i):
         
     Returns: 
         dentist T statistics
-        p values for those statistics
+        -log10 p values for those statistics
     """
     
     assert z.shape == r.shape
@@ -41,14 +41,12 @@ def compute_p_dentist(z, r, i):
     
     t = ((z - (z_i * r)) ** 2) / (1 - (r ** 2))
     
-    # t is approximately distributed chi squared with 1 df
-    df = 1
-    p = 1 - chi2.cdf(t, df)
-    return t, p
+    # t is approximately distributed chi squared with 1 dof
+    dof = 1
+    log10_p = chi2.logsf(t, dof) / -np.log(10)
+    
+    return t, log10_p
 
-def switch_ref_alt(var_id):
-    chrom, pos, a1, a2 = var_id.split(":", 3)
-    return ":".join([chrom, pos, a2, a1])
 
 def main(pheno, config):
 
@@ -59,7 +57,7 @@ def main(pheno, config):
     }
 
     results_df = pd.DataFrame(
-        columns=["config", "pheno", "region", "t_dentist_fill", "p_dentist_fill", "t_dentist_drop", "p_dentist_drop"]
+        columns=["config", "pheno", "region", "t_dentist_fill", "log10_p_dentist_fill", "t_dentist_drop", "log10_p_dentist_drop"]
     )
 
     studies_per_config = pd.read_csv(f"{path_pref}/config/meta_config_hg19.tsv", sep="\t", header=None)
@@ -97,7 +95,7 @@ def main(pheno, config):
             )
 
             # get lead index
-            lead_var = var.filter((var.var_id == var_id_i) | (var.var_id == switch_ref_alt(var_id_i)))
+            lead_var = var.filter(var.var_id == var_id_i)
             if lead_var.count() == 1:
                 lead_idx = lead_var.idx.collect()[0]
             else:
@@ -114,8 +112,7 @@ def main(pheno, config):
                 f"{dentist_pref}/gnomad_v2.1.1_chr3_{pop}_var.ht"
             )
             locus_vars = abf_results_region.variant.to_list()
-            locus_vars_w_switch = locus_vars + list(map(switch_ref_alt, locus_vars))
-            var = var.filter(hl.literal(set(locus_vars_w_switch)).contains(var.var_id))
+            var = var.filter(hl.literal(set(locus_vars)).contains(var.var_id))
             ids = var.var_id.collect()
             idxs = var.idx.collect()
 
@@ -123,8 +120,8 @@ def main(pheno, config):
             ld = ld[:, lead_idx].to_numpy().squeeze()
 
             df = pd.DataFrame({
-                "variant": ids + list(map(switch_ref_alt, ids)),
-                f"{pop}_ld": np.concatenate((ld, ld))
+                "variant": ids,
+                f"{pop}_ld": ld
             })
 
             abf_results_region = pd.merge(abf_results_region, df, how="left", left_on="variant", right_on="variant")
@@ -162,12 +159,12 @@ def main(pheno, config):
             i_drop = np.argmin(abf_results_region_drop.p.to_numpy())
 
             # run dentist
-            t_dentist_fill, p_dentist_fill = compute_p_dentist(z_fill, r_fill, i_fill)
-            t_dentist_drop, p_dentist_drop = compute_p_dentist(z_drop, r_drop, i_drop)        
+            t_dentist_fill, log10_p_dentist_fill = compute_p_dentist(z_fill, r_fill, i_fill)
+            t_dentist_drop, log10_p_dentist_drop = compute_p_dentist(z_drop, r_drop, i_drop)        
 
             # append results to dataframe
             results_df.loc[len(results_df)] = [
-                config, pheno, region, t_dentist_fill, p_dentist_fill, t_dentist_drop, p_dentist_drop
+                config, pheno, region, t_dentist_fill, log10_p_dentist_fill, t_dentist_drop, log10_p_dentist_drop
             ]
 
     # write results dataframe
